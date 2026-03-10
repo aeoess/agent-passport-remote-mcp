@@ -45,7 +45,7 @@ const reader = response.body.getReader();
 | `GET /health` | Health check (JSON) |
 | `GET /.well-known/agent.json` | A2A Agent Card |
 
-## 38 MCP Tools
+## 49 MCP Tools
 
 All 8 protocol layers exposed:
 
@@ -79,8 +79,8 @@ Environment variables:
 ## Links
 
 - **Website:** [aeoess.com](https://aeoess.com)
-- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.10.0, 313 tests)
-- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.4.3, 38 tools)
+- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.11.0, 481 tests)
+- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.5.0, 49 tools)
 - **Paper:** [The Agent Social Contract](https://doi.org/10.5281/zenodo.18749779)
 - **GitHub:** [aeoess](https://github.com/aeoess)
 
