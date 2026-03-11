@@ -47,7 +47,7 @@ const reader = response.body.getReader();
 
 ## 49 MCP Tools
 
-All 8 protocol layers exposed:
+All 16 protocol modules exposed:
 
 - **Identity** (3): generate_keys, identify, accept_assignment
 - **Delegation** (4): create_delegation, verify_delegation, revoke_delegation, sub_delegate
