@@ -79,8 +79,8 @@ Environment variables:
 ## Links
 
 - **Website:** [aeoess.com](https://aeoess.com)
-- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.11.0, 481 tests)
-- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.5.0, 49 tools)
+- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.12.0, 511 tests)
+- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.6.0, 55 tools)
 - **Paper:** [The Agent Social Contract](https://doi.org/10.5281/zenodo.18749779)
 - **GitHub:** [aeoess](https://github.com/aeoess)
 
