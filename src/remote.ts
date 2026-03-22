@@ -9,6 +9,9 @@ import cors from 'cors'
 import { randomUUID } from 'crypto'
 import { spawn, type ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 const PORT = parseInt(process.env.PORT || '3001')
 const HOST = process.env.HOST || '0.0.0.0'
@@ -27,6 +30,53 @@ interface Session {
 }
 
 const sessions = new Map<string, Session>()
+
+// ═══════════════════════════════════════
+// Persistent Usage Stats
+// ═══════════════════════════════════════
+const STATS_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', 'stats.json')
+
+interface PersistentStats {
+  totalSessions: number
+  totalToolCalls: number
+  totalStatelessRequests: number
+  firstSeen: string
+  lastSeen: string
+  dailySessions: Record<string, number>  // YYYY-MM-DD → count
+}
+
+function loadStats(): PersistentStats {
+  try {
+    if (existsSync(STATS_FILE)) return JSON.parse(readFileSync(STATS_FILE, 'utf-8'))
+  } catch {}
+  return { totalSessions: 0, totalToolCalls: 0, totalStatelessRequests: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), dailySessions: {} }
+}
+
+function saveStats() {
+  try { writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2)) } catch {}
+}
+
+const stats = loadStats()
+
+function recordSession() {
+  stats.totalSessions++
+  stats.lastSeen = new Date().toISOString()
+  const day = new Date().toISOString().slice(0, 10)
+  stats.dailySessions[day] = (stats.dailySessions[day] || 0) + 1
+  saveStats()
+}
+
+function recordToolCall() {
+  stats.totalToolCalls++
+  stats.lastSeen = new Date().toISOString()
+  saveStats()
+}
+
+function recordStatelessRequest() {
+  stats.totalStatelessRequests++
+  stats.lastSeen = new Date().toISOString()
+  saveStats()
+}
 
 function cleanupSession(sessionId: string) {
   const session = sessions.get(sessionId)
@@ -86,13 +136,23 @@ app.use(cors({ origin: true, credentials: true, exposedHeaders: ['X-Session-Id']
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '1.0.0', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
+  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.9.2', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
+})
+
+app.get('/stats', (_req, res) => {
+  const today = new Date().toISOString().slice(0, 10)
+  res.json({
+    ...stats,
+    activeSessions: sessions.size,
+    todaySessions: stats.dailySessions[today] || 0,
+    uptimeHours: Math.round(process.uptime() / 3600 * 10) / 10,
+  })
 })
 
 app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
-    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents.',
-    url: 'https://mcp.aeoess.com', version: '1.10.0',
+    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 37 core + 32 v2 constitutional modules.',
+    url: 'https://mcp.aeoess.com', version: '2.9.2',
     provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
     capabilities: { streaming: true, pushNotifications: false },
     defaultInputModes: ['application/json'], defaultOutputModes: ['application/json'],
@@ -121,7 +181,8 @@ app.get('/sse', authMiddleware, (req, res) => {
   const child = spawnMCPProcess(sessionId)
   const session: Session = { id: sessionId, process: child, sseResponse: res, created: Date.now(), lastActivity: Date.now() }
   sessions.set(sessionId, session)
-  console.log(`[${sessionId.slice(0, 8)}] SSE session started (${sessions.size} active)`)
+  recordSession()
+  console.log(`[${sessionId.slice(0, 8)}] SSE session started (${sessions.size} active, ${stats.totalSessions} lifetime)`)
 
   const messageUrl = `/message?sessionId=${sessionId}`
   res.write(`event: endpoint\ndata: ${messageUrl}\n\n`)
@@ -145,6 +206,7 @@ app.post('/message', authMiddleware, (req, res) => {
   session.lastActivity = Date.now()
   try {
     session.process.stdin!.write(JSON.stringify(req.body) + '\n')
+    recordToolCall()
     res.status(202).json({ status: 'accepted' })
   } catch (err) {
     res.status(500).json({ error: 'Failed to send message to MCP server' })
@@ -153,6 +215,7 @@ app.post('/message', authMiddleware, (req, res) => {
 
 // Streamable HTTP: POST /mcp — stateless request-response
 app.post('/mcp', authMiddleware, async (req, res) => {
+  recordStatelessRequest()
   const child = spawn(MCP_COMMAND, MCP_ARGS, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'production' } })
   let responded = false
   const timeout = setTimeout(() => { if (!responded) { responded = true; try { child.kill() } catch {}; res.status(504).json({ error: 'MCP timeout' }) } }, 30000)
@@ -182,12 +245,13 @@ app.get('/', (_req, res) => {
 h1{color:#60a5fa}code{background:#1e293b;padding:2px 8px;border-radius:4px;font-size:.9em}
 pre{background:#1e293b;padding:16px;border-radius:8px;overflow-x:auto;border-left:3px solid #60a5fa}
 a{color:#60a5fa}.badge{display:inline-block;background:#166534;color:#bbf7d0;padding:2px 10px;border-radius:12px;font-size:.85em}</style></head>
-<body><h1>Agent Passport System</h1><p><span class="badge">v1.10.0 — 313 tests</span></p>
-<p>Remote MCP server for cryptographic agent identity, delegation, policy enforcement, and governance.</p>
+<body><h1>Agent Passport System</h1><p><span class="badge">v2.9.2 — 1073 tests — 72 tools</span></p>
+<p>Remote MCP server for cryptographic agent identity, delegation, policy enforcement, and governance. 37 core + 32 v2 constitutional modules.</p>
 <h2>Connect</h2><p><b>SSE:</b> <code>https://mcp.aeoess.com/sse</code></p>
 <h3>Claude Desktop</h3><pre>{ "mcpServers": { "agent-passport": { "type": "sse", "url": "https://mcp.aeoess.com/sse" } } }</pre>
 <h2>Links</h2><ul><li><a href="https://aeoess.com">Website</a></li><li><a href="https://www.npmjs.com/package/agent-passport-system">npm SDK</a></li>
 <li><a href="https://github.com/aeoess">GitHub</a></li><li><a href="/health">Health Check</a></li>
+<li><a href="/stats">Usage Stats</a></li>
 <li><a href="/.well-known/agent.json">A2A Agent Card</a></li></ul></body></html>`)
 })
 
@@ -203,6 +267,7 @@ app.listen(PORT, HOST, () => {
   console.log(`  POST /message SSE message endpoint`)
   console.log(`  POST /mcp     Streamable HTTP`)
   console.log(`  GET  /health  Health check`)
+  console.log(`  GET  /stats   Usage statistics`)
   console.log(`  GET  /.well-known/agent.json  A2A Agent Card\n`)
 })
 
