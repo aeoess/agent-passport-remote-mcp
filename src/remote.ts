@@ -43,13 +43,21 @@ interface PersistentStats {
   firstSeen: string
   lastSeen: string
   dailySessions: Record<string, number>  // YYYY-MM-DD → count
+  toolCalls: Record<string, number>      // tool_name → count
+  passportsIssued: number                // identity-related tool calls
 }
 
 function loadStats(): PersistentStats {
   try {
-    if (existsSync(STATS_FILE)) return JSON.parse(readFileSync(STATS_FILE, 'utf-8'))
+    if (existsSync(STATS_FILE)) {
+      const loaded = JSON.parse(readFileSync(STATS_FILE, 'utf-8'))
+      // Migrate: add new fields if missing
+      if (!loaded.toolCalls) loaded.toolCalls = {}
+      if (!loaded.passportsIssued) loaded.passportsIssued = 0
+      return loaded
+    }
   } catch {}
-  return { totalSessions: 0, totalToolCalls: 0, totalStatelessRequests: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), dailySessions: {} }
+  return { totalSessions: 0, totalToolCalls: 0, totalStatelessRequests: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), dailySessions: {}, toolCalls: {}, passportsIssued: 0 }
 }
 
 function saveStats() {
@@ -70,6 +78,25 @@ function recordToolCall() {
   stats.totalToolCalls++
   stats.lastSeen = new Date().toISOString()
   saveStats()
+}
+
+// Identity tools that count as "passport issued"
+const PASSPORT_TOOLS = new Set([
+  'generate_keys', 'identify', 'create_principal', 'endorse_agent',
+])
+
+function recordToolName(body: any) {
+  try {
+    // JSON-RPC tools/call: { method: "tools/call", params: { name: "generate_keys" } }
+    if (body?.method === 'tools/call' && body?.params?.name) {
+      const toolName = body.params.name
+      stats.toolCalls[toolName] = (stats.toolCalls[toolName] || 0) + 1
+      if (PASSPORT_TOOLS.has(toolName)) {
+        stats.passportsIssued++
+      }
+      saveStats()
+    }
+  } catch {}
 }
 
 function recordStatelessRequest() {
@@ -136,23 +163,29 @@ app.use(cors({ origin: true, credentials: true, exposedHeaders: ['X-Session-Id']
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.9.2', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
+  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.15.0', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
 })
 
 app.get('/stats', (_req, res) => {
   const today = new Date().toISOString().slice(0, 10)
+  // Top 10 tools by usage
+  const topTools = Object.entries(stats.toolCalls)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }))
   res.json({
     ...stats,
     activeSessions: sessions.size,
     todaySessions: stats.dailySessions[today] || 0,
     uptimeHours: Math.round(process.uptime() / 3600 * 10) / 10,
+    topTools,
   })
 })
 
 app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
-    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 37 core + 32 v2 constitutional modules.',
-    url: 'https://mcp.aeoess.com', version: '2.9.2',
+    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 48 layers, 108 tools, full governance distribution stack.',
+    url: 'https://mcp.aeoess.com', version: '2.15.0',
     provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
     capabilities: { streaming: true, pushNotifications: false },
     defaultInputModes: ['application/json'], defaultOutputModes: ['application/json'],
@@ -207,6 +240,7 @@ app.post('/message', authMiddleware, (req, res) => {
   try {
     session.process.stdin!.write(JSON.stringify(req.body) + '\n')
     recordToolCall()
+    recordToolName(req.body)
     res.status(202).json({ status: 'accepted' })
   } catch (err) {
     res.status(500).json({ error: 'Failed to send message to MCP server' })
@@ -233,7 +267,7 @@ app.post('/mcp', authMiddleware, async (req, res) => {
   const initMessage = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'remote-mcp-bridge', version: '1.0.0' } } })
   try {
     child.stdin!.write(initMessage + '\n')
-    setTimeout(() => { try { child.stdin!.write(JSON.stringify({ ...req.body, id: (req.body.id || 2) }) + '\n') } catch {} }, 100)
+    setTimeout(() => { try { recordToolName(req.body); child.stdin!.write(JSON.stringify({ ...req.body, id: (req.body.id || 2) }) + '\n') } catch {} }, 100)
   } catch (err) { if (!responded) { responded = true; clearTimeout(timeout); res.status(500).json({ error: `Write failed: ${err}` }) } }
 })
 
@@ -245,8 +279,8 @@ app.get('/', (_req, res) => {
 h1{color:#60a5fa}code{background:#1e293b;padding:2px 8px;border-radius:4px;font-size:.9em}
 pre{background:#1e293b;padding:16px;border-radius:8px;overflow-x:auto;border-left:3px solid #60a5fa}
 a{color:#60a5fa}.badge{display:inline-block;background:#166534;color:#bbf7d0;padding:2px 10px;border-radius:12px;font-size:.85em}</style></head>
-<body><h1>Agent Passport System</h1><p><span class="badge">v2.9.2 — 1073 tests — 72 tools</span></p>
-<p>Remote MCP server for cryptographic agent identity, delegation, policy enforcement, and governance. 37 core + 32 v2 constitutional modules.</p>
+<body><h1>Agent Passport System</h1><p><span class="badge">v2.15.0 — 1445 tests — 108 tools</span></p>
+<p>Remote MCP server for cryptographic agent identity, delegation, policy enforcement, and governance. 48 layers, full governance distribution stack.</p>
 <h2>Connect</h2><p><b>SSE:</b> <code>https://mcp.aeoess.com/sse</code></p>
 <h3>Claude Desktop</h3><pre>{ "mcpServers": { "agent-passport": { "type": "sse", "url": "https://mcp.aeoess.com/sse" } } }</pre>
 <h2>Links</h2><ul><li><a href="https://aeoess.com">Website</a></li><li><a href="https://www.npmjs.com/package/agent-passport-system">npm SDK</a></li>
