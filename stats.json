@@ -1,14 +1,17 @@
 {
-  "totalSessions": 52,
-  "totalToolCalls": 39,
+  "totalSessions": 112,
+  "totalToolCalls": 68,
   "totalStatelessRequests": 0,
   "firstSeen": "2026-03-22T22:38:14.282Z",
-  "lastSeen": "2026-03-26T01:07:01.006Z",
+  "lastSeen": "2026-03-27T15:12:10.550Z",
   "dailySessions": {
     "2026-03-22": 1,
     "2026-03-23": 19,
     "2026-03-24": 16,
     "2026-03-25": 13,
-    "2026-03-26": 3
-  }
+    "2026-03-26": 37,
+    "2026-03-27": 26
+  },
+  "toolCalls": {},
+  "passportsIssued": 0
 }
