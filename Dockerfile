@@ -8,10 +8,10 @@ RUN npm ci --production=false
 COPY . .
 RUN npm run build
 
-ENV PORT=3002
 ENV HOST=0.0.0.0
 ENV NODE_ENV=production
 
 EXPOSE 3002
+EXPOSE 8080
 
 CMD ["node", "build/remote.js"]
