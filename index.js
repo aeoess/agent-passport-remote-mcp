@@ -157,6 +157,8 @@ const state = {
     issuanceCount: 0,
     postIssuanceBehavior: new Map(),
     recentlyIssuedPassports: new Set(),
+    issuanceTimestamps: new Map(),
+    endorsementLatencies: new Map(),
 };
 // Load persisted task state
 // ── Post-issuance behavioral sequence recording ──
@@ -560,10 +562,16 @@ server.tool("issue_passport", "Issue a complete agent passport with keys, signed
     const passport = hasIssuer
         ? countersignPassport(agent.passport, AEOESS_ISSUER_PRIVATE_KEY, 'aeoess')
         : agent.passport;
-    // Phase 4: Derive issuance context
+    // Phase 4: Derive issuance context with computed signals
     const evidence = createEmptyEvidenceRecord(observed);
+    const issuanceAgeMs = Date.now() - (globalThis.__mcpStartTime || Date.now());
+    const derivedSignals = [
+        { key: 'issuance_age_ms', value: String(issuanceAgeMs), derivedFrom: ['serverStartTime', 'requestedAt'], computedAt: new Date().toISOString() },
+        { key: 'session_passport_count', value: String(state.issuanceCount), derivedFrom: ['issuanceCount'], computedAt: new Date().toISOString() },
+    ];
     const context = createIssuanceContext(evidence, {
         hasIssuerSignature: hasIssuer,
+        derivedSignals,
     });
     // Phase 5: Bind attestation to passport
     const attestedPassport = bindAttestation(passport, context);
@@ -571,6 +579,7 @@ server.tool("issue_passport", "Issue a complete agent passport with keys, signed
     const passportId = passport.passport.agentId;
     state.issuanceContexts.set(passportId, context);
     state.recentlyIssuedPassports.add(passportId);
+    state.issuanceTimestamps.set(passportId, Date.now());
     // Initialize behavioral sequence tracking for this agent
     state.postIssuanceBehavior.set(passportId, [{ tool: 'issue_passport', ts: new Date().toISOString() }]);
     // Bridge: fire-and-forget POST to gateway (if configured)
@@ -2328,6 +2337,11 @@ server.tool("endorse_agent", "Endorse an agent as a principal. Creates a cryptog
     expires_in_days: z.number().default(365).describe("Days until endorsement expires"),
 }, async (args) => {
     recordBehavior('endorse_agent');
+    // Consilium signal #5: endorsement latency. T+200ms = automation. T+3h = human.
+    const issuedAt = state.issuanceTimestamps.get(args.agent_id);
+    if (issuedAt && !state.endorsementLatencies.has(args.agent_id)) {
+        state.endorsementLatencies.set(args.agent_id, Date.now() - issuedAt);
+    }
     if (!state.principal || !state.principalPrivateKey) {
         return { content: [{ type: "text", text: 'No principal identity. Call create_principal first.' }], isError: true };
     }
