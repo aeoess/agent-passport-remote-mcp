@@ -18,6 +18,8 @@ const MCP_COMMAND = process.env.MCP_COMMAND || 'npx';
 const MCP_ARGS = (process.env.MCP_ARGS || 'agent-passport-system-mcp').split(' ');
 const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT || '3600000');
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '100');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'https://gateway.aeoess.com';
+const GATEWAY_API_KEY = process.env.GATEWAY_API_KEY || '';
 const sessions = new Map();
 // ═══════════════════════════════════════
 // Persistent Usage Stats
@@ -80,6 +82,39 @@ function recordStatelessRequest() {
     stats.totalStatelessRequests++;
     stats.lastSeen = new Date().toISOString();
     saveStats();
+}
+// ═══════════════════════════════════════
+// Gateway Bridge — Register agents on passport issuance
+// Best-effort, fire-and-forget. Never blocks passport delivery.
+// ═══════════════════════════════════════
+async function registerAgentWithGateway(mcpResponse) {
+    if (!GATEWAY_API_KEY)
+        return;
+    try {
+        const content = mcpResponse?.result?.content;
+        if (!content || !Array.isArray(content))
+            return;
+        const textBlock = content.find((c) => c.type === 'text');
+        if (!textBlock?.text)
+            return;
+        const data = JSON.parse(textBlock.text);
+        const agentId = data.agentId || data.did || `mcp-agent-${Date.now()}`;
+        const publicKey = data.publicKey || '';
+        const name = data.passport?.passport?.name || data.passport?.passport?.agentId || 'MCP Agent';
+        const resp = await fetch(`${GATEWAY_URL}/api/v1/agents`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${GATEWAY_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ agent_id: agentId, public_key: publicKey, name }),
+            signal: AbortSignal.timeout(5000),
+        });
+        console.log(`[gateway] Registered agent ${agentId} (status: ${resp.status})`);
+    }
+    catch (err) {
+        console.log(`[gateway] Registration failed (best-effort): ${err.message}`);
+    }
 }
 function cleanupSession(sessionId) {
     const session = sessions.get(sessionId);
@@ -189,7 +224,7 @@ app.get('/sse', authMiddleware, (req, res) => {
     res.setHeader('X-Session-Id', sessionId);
     res.flushHeaders();
     const child = spawnMCPProcess(sessionId);
-    const session = { id: sessionId, process: child, sseResponse: res, created: Date.now(), lastActivity: Date.now() };
+    const session = { id: sessionId, process: child, sseResponse: res, created: Date.now(), lastActivity: Date.now(), pendingPassportIds: new Set() };
     sessions.set(sessionId, session);
     recordSession();
     console.log(`[${sessionId.slice(0, 8)}] SSE session started (${sessions.size} active, ${stats.totalSessions} lifetime)`);
@@ -208,9 +243,14 @@ app.get('/sse', authMiddleware, (req, res) => {
     rl.on('line', (line) => {
         if (line.trim()) {
             try {
-                JSON.parse(line);
+                const parsed = JSON.parse(line);
                 session.lastActivity = Date.now();
                 res.write(`event: message\ndata: ${line}\n\n`);
+                // Gateway bridge: register agent when issue_passport response arrives
+                if (parsed.id != null && session.pendingPassportIds.has(parsed.id)) {
+                    session.pendingPassportIds.delete(parsed.id);
+                    registerAgentWithGateway(parsed).catch(() => { });
+                }
             }
             catch { /* non-JSON stdout, skip */ }
         }
@@ -239,6 +279,10 @@ app.post('/message', authMiddleware, (req, res) => {
         session.process.stdin.write(JSON.stringify(req.body) + '\n');
         recordToolCall();
         recordToolName(req.body);
+        // Track issue_passport calls for gateway bridge
+        if (req.body?.method === 'tools/call' && req.body?.params?.name === 'issue_passport' && req.body?.id != null) {
+            session.pendingPassportIds.add(req.body.id);
+        }
         res.status(202).json({ status: 'accepted' });
     }
     catch (err) {
