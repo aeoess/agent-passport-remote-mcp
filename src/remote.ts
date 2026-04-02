@@ -220,6 +220,12 @@ app.get('/sse', authMiddleware, (req, res) => {
   const messageUrl = `/message?sessionId=${sessionId}`
   res.write(`event: endpoint\ndata: ${messageUrl}\n\n`)
 
+  // Heartbeat to keep SSE alive through Railway/Fastly CDN proxy
+  const heartbeat = setInterval(() => {
+    try { res.write(`: heartbeat ${Date.now()}\n\n`) }
+    catch { clearInterval(heartbeat) }
+  }, 15000)
+
   const rl = createInterface({ input: child.stdout! })
   rl.on('line', (line) => {
     if (line.trim()) {
@@ -227,7 +233,12 @@ app.get('/sse', authMiddleware, (req, res) => {
       catch { /* non-JSON stdout, skip */ }
     }
   })
-  req.on('close', () => { console.log(`[${sessionId.slice(0, 8)}] Client disconnected`); cleanupSession(sessionId) })
+  child.on('exit', (code) => {
+    console.log(`[${sessionId.slice(0, 8)}] Child process exited (code ${code}) — cleaning up`)
+    clearInterval(heartbeat)
+    cleanupSession(sessionId)
+  })
+  req.on('close', () => { console.log(`[${sessionId.slice(0, 8)}] Client disconnected`); clearInterval(heartbeat); cleanupSession(sessionId) })
 })
 
 // POST /message — client sends JSON-RPC to MCP subprocess
