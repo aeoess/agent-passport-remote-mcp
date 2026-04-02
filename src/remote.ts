@@ -20,8 +20,8 @@ const MCP_COMMAND = process.env.MCP_COMMAND || 'npx'
 const MCP_ARGS = (process.env.MCP_ARGS || 'agent-passport-system-mcp').split(' ')
 const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT || '3600000')
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '100')
-const GATEWAY_URL = process.env.GATEWAY_URL || 'https://gateway.aeoess.com'
-const GATEWAY_API_KEY = process.env.GATEWAY_API_KEY || ''
+const GATEWAY_URL = process.env.AEOESS_GATEWAY_URL || process.env.GATEWAY_URL || 'https://gateway.aeoess.com'
+const GATEWAY_API_KEY = process.env.AEOESS_GATEWAY_KEY || process.env.GATEWAY_API_KEY || ''
 
 interface Session {
   id: string
