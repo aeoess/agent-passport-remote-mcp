@@ -14,7 +14,7 @@
     "CODE_OF_CONDUCT.md"
   ],
   "scripts": {
-    "build": "tsc && chmod 755 build/bin.js build/index.js build/setup.js",
+    "build": "tsc && chmod 755 build/remote.js",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "prepublishOnly": "npm run build",
