@@ -59,7 +59,8 @@ function recordToolCall() {
 }
 // Identity tools that count as "passport issued"
 const PASSPORT_TOOLS = new Set([
-    'generate_keys', 'identify', 'create_principal', 'endorse_agent',
+    'issue_passport', 'generate_keys', 'identify', 'create_principal',
+    'endorse_agent', 'join_social_contract',
 ]);
 function recordToolName(body) {
     try {
