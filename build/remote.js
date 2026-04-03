@@ -228,7 +228,10 @@ app.get('/sse', authMiddleware, (req, res) => {
     sessions.set(sessionId, session);
     recordSession();
     console.log(`[${sessionId.slice(0, 8)}] SSE session started (${sessions.size} active, ${stats.totalSessions} lifetime)`);
-    const messageUrl = `/message?sessionId=${sessionId}`;
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('host') || 'mcp.aeoess.com';
+    const baseUrl = process.env.PUBLIC_URL || `${proto}://${host}`;
+    const messageUrl = `${baseUrl}/message?sessionId=${sessionId}`;
     res.write(`event: endpoint\ndata: ${messageUrl}\n\n`);
     // Heartbeat to keep SSE alive through Railway/Fastly CDN proxy
     const heartbeat = setInterval(() => {
