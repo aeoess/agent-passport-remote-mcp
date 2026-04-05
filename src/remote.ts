@@ -266,15 +266,23 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.20.0', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
 })
 
-app.get('/stats', async (_req, res) => {
+// /stats — internal only (requires gateway API key)
+// Public metrics surface: aeoess.com/gateway.html
+app.get('/stats', async (req, res) => {
+  const authHeader = req.headers.authorization
+  if (!GATEWAY_API_KEY || !authHeader || authHeader !== `Bearer ${GATEWAY_API_KEY}`) {
+    return res.json({
+      message: 'Public metrics available at https://aeoess.com/gateway.html',
+      status: 'ok',
+      version: MCP_SERVER_VERSION,
+      uptime: process.uptime(),
+    })
+  }
   const today = new Date().toISOString().slice(0, 10)
-  // Top 10 tools by usage
   const topTools = Object.entries(stats.toolCalls)
     .sort(([,a], [,b]) => b - a)
     .slice(0, 10)
     .map(([name, count]) => ({ name, count }))
-  // Cumulative totals from gateway (persistent across Railway restarts).
-  // Cached 60s, fire-and-forget: if gateway is down, return null, don't block.
   const cumulative = await getCumulativeStats()
   res.json({
     ...stats,
