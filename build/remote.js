@@ -21,6 +21,11 @@ const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '100');
 const GATEWAY_URL = process.env.AEOESS_GATEWAY_URL || process.env.GATEWAY_URL || 'https://gateway.aeoess.com';
 const GATEWAY_API_KEY = process.env.AEOESS_GATEWAY_KEY || process.env.GATEWAY_API_KEY || '';
 const sessions = new Map();
+// Unique identifier for this MCP server process lifetime. Reset on every
+// Railway deploy. Gateway deduplicates snapshots per session_id.
+const MCP_SESSION_ID = randomUUID();
+const MCP_SERVER_VERSION = '2.20.0';
+const MCP_STARTED_AT = Date.now();
 // ═══════════════════════════════════════
 // Persistent Usage Stats
 // ═══════════════════════════════════════
@@ -116,6 +121,64 @@ async function registerAgentWithGateway(mcpResponse) {
         console.log(`[gateway] Registration failed (best-effort): ${err.message}`);
     }
 }
+// ═══════════════════════════════════════
+// Gateway Stats Sync — periodic heartbeat + SIGTERM flush
+// Persists counters across Railway restarts.
+// Fire-and-forget: never blocks or throws.
+// ═══════════════════════════════════════
+async function syncStatsToGateway(reason = 'heartbeat') {
+    if (!GATEWAY_API_KEY)
+        return;
+    try {
+        const payload = {
+            session_id: MCP_SESSION_ID,
+            uptime_seconds: Math.floor((Date.now() - MCP_STARTED_AT) / 1000),
+            passports_issued: stats.passportsIssued,
+            sessions_total: stats.totalSessions,
+            sessions_active: sessions.size,
+            tool_calls_total: stats.totalToolCalls,
+            version: MCP_SERVER_VERSION,
+        };
+        const resp = await fetch(`${GATEWAY_URL}/api/v1/mcp-stats`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${GATEWAY_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(5000),
+        });
+        console.log(`[stats-sync:${reason}] gateway status ${resp.status}`);
+    }
+    catch (err) {
+        console.log(`[stats-sync:${reason}] failed (best-effort): ${err.message}`);
+    }
+}
+// 5-minute heartbeat
+setInterval(() => { syncStatsToGateway('heartbeat').catch(() => { }); }, 5 * 60 * 1000);
+// Initial sync after 30s so new deploys are visible quickly
+setTimeout(() => { syncStatsToGateway('heartbeat').catch(() => { }); }, 30 * 1000);
+// ═══════════════════════════════════════
+// Cumulative stats cache — /stats fetches gateway totals once per 60s
+// ═══════════════════════════════════════
+let cumulativeCache = null;
+async function getCumulativeStats() {
+    if (cumulativeCache && cumulativeCache.expires > Date.now())
+        return cumulativeCache.data;
+    try {
+        const resp = await fetch(`${GATEWAY_URL}/api/v1/mcp-stats/cumulative`, {
+            signal: AbortSignal.timeout(3000),
+        });
+        if (!resp.ok)
+            return null;
+        const data = await resp.json();
+        cumulativeCache = { data, expires: Date.now() + 60_000 };
+        return data;
+    }
+    catch {
+        return null;
+    }
+}
 function cleanupSession(sessionId) {
     const session = sessions.get(sessionId);
     if (session) {
@@ -178,19 +241,24 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.19.1', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() });
 });
-app.get('/stats', (_req, res) => {
+app.get('/stats', async (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     // Top 10 tools by usage
     const topTools = Object.entries(stats.toolCalls)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 10)
         .map(([name, count]) => ({ name, count }));
+    // Cumulative totals from gateway (persistent across Railway restarts).
+    // Cached 60s, fire-and-forget: if gateway is down, return null, don't block.
+    const cumulative = await getCumulativeStats();
     res.json({
         ...stats,
         activeSessions: sessions.size,
         todaySessions: stats.dailySessions[today] || 0,
         uptimeHours: Math.round(process.uptime() / 3600 * 10) / 10,
         topTools,
+        cumulative,
+        sessionId: MCP_SESSION_ID,
     });
 });
 app.get('/.well-known/agent.json', (_req, res) => {
@@ -381,8 +449,18 @@ app.listen(PORT, HOST, () => {
     console.log(`  GET  /stats   Usage statistics`);
     console.log(`  GET  /.well-known/agent.json  A2A Agent Card\n`);
 });
-process.on('SIGTERM', () => { console.log('Shutting down...'); for (const [id] of sessions)
-    cleanupSession(id); process.exit(0); });
-process.on('SIGINT', () => { console.log('Interrupted...'); for (const [id] of sessions)
-    cleanupSession(id); process.exit(0); });
+process.on('SIGTERM', async () => {
+    console.log('Shutting down...');
+    await syncStatsToGateway('shutdown').catch(() => { });
+    for (const [id] of sessions)
+        cleanupSession(id);
+    process.exit(0);
+});
+process.on('SIGINT', async () => {
+    console.log('Interrupted...');
+    await syncStatsToGateway('shutdown').catch(() => { });
+    for (const [id] of sessions)
+        cleanupSession(id);
+    process.exit(0);
+});
 //# sourceMappingURL=remote.js.map
