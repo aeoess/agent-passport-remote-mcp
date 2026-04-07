@@ -54,7 +54,9 @@ createV2Attestation, assessV2AttestationQuality, } from "agent-passport-system";
 // Agent Attestation Architecture (Phase 1 — Consilium Build)
 import { createIssuanceContext, bindAttestation, createEmptyEvidenceRecord, PASSPORT_GRADE_LABELS, 
 // v1.33.0 — action_ref + freshness + evidence-based grade
-computeActionRef, isEvidenceFresh, computeEvidenceAge, classifyEvidenceQuality, evidenceQualityToGrade, } from "agent-passport-system";
+computeActionRef, isEvidenceFresh, computeEvidenceAge, classifyEvidenceQuality, evidenceQualityToGrade, 
+// key rotation
+createDIDDocument, verifyRotationChain, isKeyActive, rotateAndInvalidate, } from "agent-passport-system";
 // Data Governance (Modules 36A, 38, 39 + Enforcement Gate + Training Attribution)
 import { registerSelfAttestedSource, createContributionLedger, queryContributions, getSourceMetrics, getAgentDataFootprint, generateSettlement, verifySettlement, generateDataComplianceReport, DataEnforcementGate, createTrainingAttribution, verifyTrainingAttribution, createTrainingLedger, recordTrainingAttribution, getModelDataSources, } from "agent-passport-system";
 // Data Lifecycle Governance (Modules 43+)
@@ -456,11 +458,191 @@ server.tool = function (name, ...rest) {
     }
 };
 // ═══════════════════════════════════════
+// Scope-Based Tool Filtering (Primitive #9: Tool Pool Assembly)
+// ═══════════════════════════════════════
+// Maps every tool to an APS delegation scope.
+// Agents with scoped delegations can query which tools match their scopes.
+// Tools mapped to '*' are always available (meta/utility tools).
+const TOOL_SCOPE_MAP = {
+    // Meta tools — always available
+    'list_profiles': '*',
+    'list_tools_for_scope': '*',
+    // Identity tools → 'identity'
+    'identify': 'identity',
+    'generate_keys': 'identity',
+    'issue_passport': 'identity',
+    'verify_issuer': 'identity',
+    'get_passport_grade': 'identity',
+    'list_issuance_records': 'identity',
+    'get_behavioral_sequence': 'identity',
+    'get_my_role': 'identity',
+    'compute_action_ref': 'identity',
+    'is_evidence_fresh': 'identity',
+    'classify_evidence_quality': 'identity',
+    'rotate_key': 'identity',
+    'verify_rotation_chain': 'identity',
+    'is_key_active': 'identity',
+    // Delegation tools → 'delegation'
+    'create_delegation': 'delegation',
+    'verify_delegation': 'delegation',
+    'revoke_delegation': 'delegation',
+    'sub_delegate': 'delegation',
+    'create_v2_delegation': 'delegation',
+    'supersede_v2_delegation': 'delegation',
+    // Principal/Endorsement tools → 'principal'
+    'create_principal': 'principal',
+    'endorse_agent': 'principal',
+    'verify_endorsement': 'principal',
+    'revoke_endorsement': 'principal',
+    'create_disclosure': 'principal',
+    'get_fleet_status': 'principal',
+    // Reputation tools → 'reputation'
+    'resolve_authority': 'reputation',
+    'check_tier': 'reputation',
+    'review_promotion': 'reputation',
+    'update_reputation': 'reputation',
+    'get_promotion_history': 'reputation',
+    'vouch_reputation': 'reputation',
+    'apply_reputation_downgrade': 'reputation',
+    // Coordination tools → 'coordination'
+    'create_task_brief': 'coordination',
+    'assign_agent': 'coordination',
+    'accept_assignment': 'coordination',
+    'submit_evidence': 'coordination',
+    'review_evidence': 'coordination',
+    'handoff_evidence': 'coordination',
+    'submit_deliverable': 'coordination',
+    'complete_task': 'coordination',
+    'list_tasks': 'coordination',
+    'get_task_detail': 'coordination',
+    'get_evidence': 'coordination',
+    // Communication tools → 'communication'
+    'send_message': 'communication',
+    'check_messages': 'communication',
+    'broadcast': 'communication',
+    'list_agents': 'communication',
+    'post_agora_message': 'communication',
+    'get_agora_topics': 'communication',
+    'get_agora_thread': 'communication',
+    'get_agora_by_topic': 'communication',
+    'register_agora_agent': 'communication',
+    'register_agora_public': 'communication',
+    // Governance tools → 'governance'
+    'load_values_floor': 'governance',
+    'attest_to_floor': 'governance',
+    'create_intent': 'governance',
+    'evaluate_intent': 'governance',
+    'create_agent_context': 'governance',
+    'execute_with_context': 'governance',
+    'complete_action': 'governance',
+    'create_policy_context': 'governance',
+    'create_attestation': 'governance',
+    'create_outcome_record': 'governance',
+    'add_principal_report': 'governance',
+    'check_anomaly': 'governance',
+    'define_emergency_pathway': 'governance',
+    'activate_emergency': 'governance',
+    'request_migration': 'governance',
+    'create_artifact_provenance': 'governance',
+    'create_charter': 'governance',
+    'verify_charter': 'governance',
+    'sign_charter': 'governance',
+    'evaluate_threshold': 'governance',
+    'create_approval_request': 'governance',
+    'add_approval_signature': 'governance',
+    'generate_governance_block': 'governance',
+    'verify_governance_block': 'governance',
+    'parse_governance_block_html': 'governance',
+    'governance_360': 'governance',
+    'generate_aps_txt': 'governance',
+    'verify_aps_txt': 'governance',
+    'resolve_path_terms': 'governance',
+    'create_chained_governance_block': 'governance',
+    'compute_governance_taint': 'governance',
+    // Commerce tools → 'commerce'
+    'commerce_preflight': 'commerce',
+    'get_commerce_spend': 'commerce',
+    'request_human_approval': 'commerce',
+    // Data tools → 'data'
+    'register_data_source': 'data',
+    'create_data_enforcement_gate': 'data',
+    'check_data_access': 'data',
+    'query_contributions': 'data',
+    'get_source_metrics': 'data',
+    'get_agent_data_footprint': 'data',
+    'generate_settlement': 'data',
+    'generate_compliance_report': 'data',
+    'record_training_use': 'data',
+    'get_model_data_sources': 'data',
+    'create_access_receipt': 'data',
+    'create_access_snapshot': 'data',
+    'create_derivation_receipt': 'data',
+    'create_decision_lineage_receipt': 'data',
+    'resolve_lineage': 'data',
+    'evaluate_revocation_impact': 'data',
+    'check_purpose_permitted': 'data',
+    'check_retention_expired': 'data',
+    'check_aggregate_constraints': 'data',
+    'check_jurisdiction_transfer': 'data',
+    'check_combination_permitted': 'data',
+    'detect_purpose_drift': 'data',
+    'resolve_rights_propagation': 'data',
+    'declare_reidentification_risk': 'data',
+    'file_data_dispute': 'data',
+    'check_usage_permitted': 'data',
+    // Gateway tools → 'gateway'
+    'create_gateway': 'gateway',
+    'register_gateway_agent': 'gateway',
+    'gateway_process_tool_call': 'gateway',
+    'gateway_approve': 'gateway',
+    'gateway_execute_approval': 'gateway',
+    'gateway_stats': 'gateway',
+    // Network tools → 'network'
+    'publish_intent_card': 'network',
+    'search_matches': 'network',
+    'get_digest': 'network',
+    'request_intro': 'network',
+    'respond_to_intro': 'network',
+    'remove_intent_card': 'network',
+    // Temporal tools → 'temporal'
+    'create_hybrid_timestamp': 'temporal',
+    'compare_timestamps': 'temporal',
+    'validate_temporal_rights': 'temporal',
+    'create_reserve_attestation': 'temporal',
+};
+// ═══════════════════════════════════════
 // TOOL: list_profiles
 // ═══════════════════════════════════════
 server.tool("list_profiles", "Show available tool profiles. Set APS_PROFILE env var to limit exposed tools (e.g. APS_PROFILE=data).", {}, async () => {
     const lines = Object.entries(TOOL_PROFILES).map(([name, tools]) => `• ${name} (${tools.size} tools): ${Array.from(tools).slice(0, 6).join(', ')}${tools.size > 6 ? '...' : ''}`);
     return { content: [{ type: "text", text: `📋 Tool Profiles (set APS_PROFILE env var):\n\nActive: ${activeProfile} (${activeProfile === 'full' ? '122' : profileFilter?.size || '122'} tools)\n\n${lines.join('\n')}\n\n• full (122 tools): All tools exposed (default)` }] };
+});
+// ═══════════════════════════════════════
+// TOOL: list_tools_for_scope (Primitive #9: Tool Pool Assembly)
+// ═══════════════════════════════════════
+server.tool("list_tools_for_scope", "List available MCP tools filtered by delegation scope. Pass your delegation scopes to see which tools you can use. Scopes: identity, delegation, principal, reputation, coordination, communication, governance, commerce, data, gateway, network, temporal. Use ['*'] for all tools.", {
+    scopes: z.array(z.string()).describe("Your delegation scopes, e.g. ['identity', 'delegation', 'commerce']"),
+}, async ({ scopes }) => {
+    const allTools = Object.entries(TOOL_SCOPE_MAP);
+    const scopeSet = new Set(scopes);
+    const filtered = allTools.filter(([_, scope]) => scope === '*' || scopeSet.has(scope) || scopeSet.has('*'));
+    // Group by scope for readability
+    const byScope = {};
+    for (const [name, scope] of filtered) {
+        (byScope[scope] ??= []).push(name);
+    }
+    return {
+        content: [{
+                type: "text",
+                text: JSON.stringify({
+                    total_tools: allTools.length,
+                    accessible_tools: filtered.length,
+                    scopes_provided: scopes,
+                    tools_by_scope: byScope,
+                    tools: filtered.map(([name, scope]) => ({ name, scope })),
+                }, null, 2),
+            }],
+    };
 });
 // ═══════════════════════════════════════
 // TOOL: identify
@@ -4275,6 +4457,53 @@ server.tool("classify_evidence_quality", "Classify attestation evidence quality 
     });
     const grade = evidenceQualityToGrade(quality);
     return { content: [{ type: "text", text: `🎖️ Evidence Quality: ${quality}\nGrade: ${grade}\n\nInputs:\n  method: ${args.method ?? 'none'}\n  issuerSignature: ${args.has_issuer_signature ?? false}\n  principalBinding: ${args.has_principal_binding ?? false}\n  evidence keys: ${args.evidence ? Object.keys(args.evidence).join(', ') || '(empty)' : '(none)'}` }] };
+});
+// ═══════════════════════════════════════
+// Key Rotation — DID Document + Identity Continuity
+// ═══════════════════════════════════════
+server.tool("rotate_key", "Rotate an agent's Ed25519 key. Planned mode: configurable overlap (default 24h). Emergency mode: immediate old-key retirement. Returns updated DID document, rotation state, and revocation results.", {
+    mode: z.enum(['planned', 'emergency']),
+    old_private_key: z.string().describe("Hex-encoded private key being rotated FROM"),
+    agent_name: z.string().optional().describe("Agent name for the passport (default: current session)"),
+    activation_delay_hours: z.number().optional().describe("Planned mode overlap hours (default: 24)"),
+    delegation_ids_to_revoke: z.array(z.string()).optional().describe("Delegation IDs to cascade-revoke during rotation"),
+}, async (args) => {
+    const { generateKeyPair } = await import("agent-passport-system");
+    const oldPublicKey = (await import("agent-passport-system")).publicKeyFromPrivate(args.old_private_key);
+    const newKeyPair = generateKeyPair();
+    const passport = {
+        version: '1.0', agentId: `agent-${oldPublicKey.slice(0, 8)}`, agentName: args.agent_name || 'MCP Agent',
+        ownerAlias: 'mcp', publicKey: oldPublicKey, mission: 'key rotation', capabilities: ['rotate'],
+        runtime: { platform: 'mcp', models: ['claude'], toolsCount: 128, memoryType: 'session' },
+        createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        voteWeight: 1, reputation: { overall: 0, collaborationsCompleted: 0, proposalsSubmitted: 0, proposalsApproved: 0, tokensContributed: 0, tasksCompleted: 0, lastUpdated: new Date().toISOString() },
+        delegations: [], metadata: {},
+    };
+    const doc = createDIDDocument(passport);
+    const delayMs = args.activation_delay_hours != null ? args.activation_delay_hours * 3600000 : undefined;
+    const result = rotateAndInvalidate(doc, args.old_private_key, newKeyPair, args.delegation_ids_to_revoke || [], { mode: args.mode, activationDelayMs: delayMs });
+    return { content: [{ type: "text", text: `🔑 Key Rotation (${args.mode})\n\nState: ${result.rotationState}\nOld key: ${oldPublicKey.slice(0, 16)}...\nNew key: ${newKeyPair.publicKey.slice(0, 16)}...\nNew private key: ${newKeyPair.privateKey}\nDID: ${result.didDocument.id}\nRotation log entries: ${result.didDocument.rotationLog.length}\nRevocations: ${result.revocationResults.length} (${result.revocationResults.filter(r => !r.error).length} succeeded)\n\nActivation time: ${result.didDocument.pendingRotation?.activationTime || 'immediate'}` }] };
+});
+server.tool("verify_rotation_chain", "Verify all rotation signatures in a DID document's rotation log. Returns true if the full chain is cryptographically valid.", {
+    did_document: z.any().describe("RotatableDIDDocument JSON object with rotationLog"),
+}, async (args) => {
+    const doc = args.did_document;
+    if (!doc || !Array.isArray(doc.rotationLog)) {
+        return { content: [{ type: "text", text: `❌ Invalid DID document: missing rotationLog array` }] };
+    }
+    const valid = verifyRotationChain(doc);
+    return { content: [{ type: "text", text: `${valid ? '✅' : '❌'} Rotation chain valid: ${valid}\n\nEntries verified: ${doc.rotationLog.length}\nDID: ${doc.id || 'unknown'}` }] };
+});
+server.tool("is_key_active", "Check if a public key is currently authorized for active operations in a DID document. SDK convenience check; gateway enforcement is authoritative.", {
+    did_document: z.any().describe("RotatableDIDDocument JSON object"),
+    public_key: z.string().describe("Hex-encoded Ed25519 public key to check"),
+}, async (args) => {
+    const doc = args.did_document;
+    if (!doc || !Array.isArray(doc.verificationMethod)) {
+        return { content: [{ type: "text", text: `❌ Invalid DID document: missing verificationMethod` }] };
+    }
+    const active = isKeyActive(doc, args.public_key);
+    return { content: [{ type: "text", text: `${active ? '✅ Active' : '🔒 Inactive/Retired'}\n\nKey: ${args.public_key.slice(0, 16)}...\nDID: ${doc.id || 'unknown'}\nVerification methods: ${doc.verificationMethod.length}\nRotation log entries: ${(doc.rotationLog || []).length}` }] };
 });
 server.prompt("coordination_role", "Get instructions for your assigned coordination role", {}, async () => {
     const role = state.agentRole || 'default';
