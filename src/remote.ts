@@ -242,7 +242,7 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
 function spawnMCPProcess(sessionId: string): ChildProcess {
   const child = spawn(MCP_COMMAND, MCP_ARGS, {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, NODE_ENV: 'production' }
+    env: { ...process.env, NODE_ENV: 'production', MCP_TRANSPORT: 'sse', MCP_REMOTE: '1' }
   })
   child.stderr?.on('data', (data: Buffer) => {
     console.error(`[${sessionId.slice(0, 8)}] stderr: ${data.toString().trim()}`)
@@ -390,7 +390,7 @@ app.post('/message', authMiddleware, (req, res) => {
 // Streamable HTTP: POST /mcp — stateless request-response
 app.post('/mcp', authMiddleware, async (req, res) => {
   recordStatelessRequest()
-  const child = spawn(MCP_COMMAND, MCP_ARGS, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'production' } })
+  const child = spawn(MCP_COMMAND, MCP_ARGS, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'production', MCP_TRANSPORT: 'sse', MCP_REMOTE: '1' } })
   let responded = false
   const timeout = setTimeout(() => { if (!responded) { responded = true; try { child.kill() } catch {}; res.status(504).json({ error: 'MCP timeout' }) } }, 30000)
 
