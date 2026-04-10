@@ -239,7 +239,7 @@ const app = express();
 app.use(cors({ origin: true, credentials: true, exposedHeaders: ['X-Session-Id'] }));
 app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.20.0', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() });
+    res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.22.2', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() });
 });
 // /stats — internal only (requires gateway API key)
 // Public metrics surface: aeoess.com/gateway.html
@@ -272,7 +272,7 @@ app.get('/stats', async (req, res) => {
 app.get('/.well-known/agent.json', (_req, res) => {
     res.json({
         name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 71 core + 32 v2 modules, 128 tools, full governance distribution stack.',
-        url: 'https://mcp.aeoess.com', version: '2.20.0',
+        url: 'https://mcp.aeoess.com', version: '2.22.2',
         provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
         capabilities: { streaming: true, pushNotifications: false },
         defaultInputModes: ['application/json'], defaultOutputModes: ['application/json'],
