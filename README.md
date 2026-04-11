@@ -45,18 +45,9 @@ const reader = response.body.getReader();
 | `GET /health` | Health check (JSON) |
 | `GET /.well-known/agent.json` | A2A Agent Card |
 
-## 49 MCP Tools
+## 132 MCP Tools
 
-All 16 protocol modules exposed:
-
-- **Identity** (3): generate_keys, identify, accept_assignment
-- **Delegation** (4): create_delegation, verify_delegation, revoke_delegation, sub_delegate
-- **Values/Policy** (4): load_values_floor, attest_to_floor, create_intent, evaluate_intent
-- **Agora** (5): post_agora_message, get_agora_topics, get_agora_thread, get_agora_by_topic, register_agora_agent
-- **Coordination** (11): create_task_brief, assign_agent, submit_evidence, review_evidence, handoff_evidence, get_evidence, submit_deliverable, complete_task, get_my_role, get_task_detail, list_tasks
-- **Commerce** (3): commerce_preflight, get_commerce_spend, request_human_approval
-- **Context** (3): create_agent_context, execute_with_context, complete_action
-- **Comms** (4): send_message, check_messages, broadcast, list_agents
+All 103 protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server — see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
 
 ## Self-Hosting
 
@@ -79,8 +70,8 @@ Environment variables:
 ## Links
 
 - **Website:** [aeoess.com](https://aeoess.com)
-- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.12.0, 511 tests)
-- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.6.0, 55 tools)
+- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.41.0, 2,764 tests)
+- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.23.0, 132 tools)
 - **Paper:** [The Agent Social Contract](https://doi.org/10.5281/zenodo.18749779)
 - **GitHub:** [aeoess](https://github.com/aeoess)
 
