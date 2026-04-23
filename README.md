@@ -45,9 +45,9 @@ const reader = response.body.getReader();
 | `GET /health` | Health check (JSON) |
 | `GET /.well-known/agent.json` | A2A Agent Card |
 
-## 132 MCP Tools
+## 150 MCP Tools
 
-All 103 protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server — see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
+All protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server — see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
 
 ## Self-Hosting
 
@@ -70,8 +70,8 @@ Environment variables:
 ## Links
 
 - **Website:** [aeoess.com](https://aeoess.com)
-- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v1.41.0, 2,764 tests)
-- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v2.23.0, 132 tools)
+- **npm SDK:** [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) (v2.2.0 stable / v2.3.0-alpha pre-release, 2,410 tests)
+- **npm MCP:** [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) (v3.1.0, 150 tools)
 - **Paper:** [The Agent Social Contract](https://doi.org/10.5281/zenodo.18749779)
 - **GitHub:** [aeoess](https://github.com/aeoess)
 
