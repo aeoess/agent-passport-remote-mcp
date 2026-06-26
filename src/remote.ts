@@ -283,7 +283,8 @@ app.get('/health', (_req, res) => {
 // Public metrics surface: aeoess.com/gateway.html
 app.get('/stats', async (req, res) => {
   const authHeader = req.headers.authorization
-  if (!GATEWAY_API_KEY || !authHeader || authHeader !== `Bearer ${GATEWAY_API_KEY}`) {
+  // Constant-time compare (apiKeyEquals) so the GATEWAY_API_KEY is not leaked through /stats timing.
+  if (!GATEWAY_API_KEY || !authHeader || !apiKeyEquals(authHeader, `Bearer ${GATEWAY_API_KEY}`)) {
     return res.json({
       message: 'Public metrics available at https://aeoess.com/gateway.html',
       status: 'ok',
