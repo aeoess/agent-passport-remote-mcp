@@ -6,7 +6,7 @@
 
 import express from 'express'
 import cors from 'cors'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash, timingSafeEqual } from 'crypto'
 import { spawn, type ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
@@ -20,6 +20,10 @@ const MCP_COMMAND = process.env.MCP_COMMAND || 'npx'
 const MCP_ARGS = (process.env.MCP_ARGS || 'agent-passport-system-mcp').split(' ')
 const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT || '3600000')
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '100')
+// Cap on concurrent /mcp subprocess spawns. Without it, /mcp spawned a child per request with no
+// bound (unlike /sse, which checks MAX_SESSIONS), so a flood of POSTs could exhaust the host.
+const MAX_INFLIGHT = parseInt(process.env.MAX_INFLIGHT || '50')
+let mcpInflight = 0
 const GATEWAY_URL = process.env.AEOESS_GATEWAY_URL || process.env.GATEWAY_URL || 'https://gateway.aeoess.com'
 const GATEWAY_API_KEY = process.env.AEOESS_GATEWAY_KEY || process.env.GATEWAY_API_KEY || ''
 
@@ -225,6 +229,15 @@ setInterval(() => {
   }
 }, 60000)
 
+// Constant-time API key comparison. The previous `!==` returned as soon as the first differing
+// byte was found, leaking key bytes through response timing. Hashing both sides to a fixed 32-byte
+// digest before timingSafeEqual makes the comparison constant-time and independent of key length.
+function apiKeyEquals(presented: string, expected: string): boolean {
+  const a = createHash('sha256').update(presented).digest()
+  const b = createHash('sha256').update(expected).digest()
+  return timingSafeEqual(a, b)
+}
+
 function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (!API_KEY) return next()
   const authHeader = req.headers.authorization
@@ -232,7 +245,7 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
     res.status(401).json({ error: 'Missing or invalid Authorization header' })
     return
   }
-  if (authHeader.slice(7) !== API_KEY) {
+  if (!apiKeyEquals(authHeader.slice(7), API_KEY)) {
     res.status(403).json({ error: 'Invalid API key' })
     return
   }
@@ -389,6 +402,12 @@ app.post('/message', authMiddleware, (req, res) => {
 
 // Streamable HTTP: POST /mcp — stateless request-response
 app.post('/mcp', authMiddleware, async (req, res) => {
+  // Bound concurrent subprocess spawns so a /mcp flood cannot exhaust the host.
+  if (mcpInflight >= MAX_INFLIGHT) { res.status(503).json({ error: 'Max concurrent /mcp requests reached' }); return }
+  mcpInflight++
+  let released = false
+  const release = () => { if (!released) { released = true; mcpInflight-- } }
+  res.on('close', release)
   recordStatelessRequest()
   const child = spawn(MCP_COMMAND, MCP_ARGS, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'production', MCP_TRANSPORT: 'sse', MCP_REMOTE: '1' } })
   let responded = false
