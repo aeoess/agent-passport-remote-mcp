@@ -12,6 +12,7 @@ import { createInterface } from 'readline'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { HANDSHAKE_ID, clientRequestId, isClientResponse } from './mcp-correlate.js'
 
 const PORT = parseInt(process.env.PORT || '3001')
 const HOST = process.env.HOST || '0.0.0.0'
@@ -392,22 +393,27 @@ app.post('/mcp', authMiddleware, async (req, res) => {
   recordStatelessRequest()
   const child = spawn(MCP_COMMAND, MCP_ARGS, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'production', MCP_TRANSPORT: 'sse', MCP_REMOTE: '1' } })
   let responded = false
+  const clientId = clientRequestId(req.body)
   const timeout = setTimeout(() => { if (!responded) { responded = true; try { child.kill() } catch {}; res.status(504).json({ error: 'MCP timeout' }) } }, 30000)
 
   const rl = createInterface({ input: child.stdout! })
   rl.on('line', (line) => {
-    if (line.trim() && !responded) {
-      try { const parsed = JSON.parse(line); responded = true; clearTimeout(timeout); res.json(parsed); setTimeout(() => { try { child.kill() } catch {} }, 100) }
-      catch { /* skip non-JSON */ }
-    }
+    if (!line.trim() || responded) return
+    let parsed: any
+    try { parsed = JSON.parse(line) } catch { return /* skip non-JSON */ }
+    // Only forward the response that correlates to the client's own request.
+    // Skip the injected initialize handshake echo and any server notifications
+    // so the client receives its actual result, not the serverInfo echo.
+    if (!isClientResponse(parsed, clientId)) return
+    responded = true; clearTimeout(timeout); res.json(parsed); setTimeout(() => { try { child.kill() } catch {} }, 100)
   })
   child.on('error', (err) => { if (!responded) { responded = true; clearTimeout(timeout); res.status(500).json({ error: err.message }) } })
   child.on('exit', (code) => { if (!responded) { responded = true; clearTimeout(timeout); res.status(500).json({ error: `Process exited ${code}` }) } })
 
-  const initMessage = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'remote-mcp-bridge', version: '1.0.0' } } })
+  const initMessage = JSON.stringify({ jsonrpc: '2.0', id: HANDSHAKE_ID, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'remote-mcp-bridge', version: '1.0.0' } } })
   try {
     child.stdin!.write(initMessage + '\n')
-    setTimeout(() => { try { recordToolName(req.body); child.stdin!.write(JSON.stringify({ ...req.body, id: (req.body.id || 2) }) + '\n') } catch {} }, 100)
+    setTimeout(() => { try { recordToolName(req.body); child.stdin!.write(JSON.stringify({ ...req.body, id: clientId }) + '\n') } catch {} }, 100)
   } catch (err) { if (!responded) { responded = true; clearTimeout(timeout); res.status(500).json({ error: `Write failed: ${err}` }) } }
 })
 
