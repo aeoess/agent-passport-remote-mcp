@@ -8,7 +8,7 @@ This is the thin HTTP/SSE bridge that fronts the stdio MCP server at `mcp.aeoess
 
 ## Dev environment
 
-- Node.js >= 18, single source file `src/remote.ts`.
+- Node.js >= 20, single source file `src/remote.ts`.
 - `npm run build` compiles to `build/remote.js` via `tsc`.
 - Local test: `node build/remote.js` with `PORT` and `MCP_COMMAND` env set.
 
