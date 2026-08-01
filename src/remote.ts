@@ -38,7 +38,7 @@ const sessions = new Map<string, Session>()
 // Unique identifier for this MCP server process lifetime. Reset on every
 // Railway deploy. Gateway deduplicates snapshots per session_id.
 const MCP_SESSION_ID = randomUUID()
-const MCP_SERVER_VERSION = '2.20.0'
+const MCP_SERVER_VERSION = '2.24.0'
 const MCP_STARTED_AT = Date.now()
 
 // ═══════════════════════════════════════
@@ -264,7 +264,7 @@ app.use(cors({ origin: true, credentials: true, exposedHeaders: ['X-Session-Id']
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: '2.23.1', sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
+  res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: MCP_SERVER_VERSION, sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
 })
 
 // /stats — internal only (requires gateway API key)
@@ -299,7 +299,7 @@ app.get('/stats', async (req, res) => {
 app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
     name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 150 tools across the full governance distribution stack.',
-    url: 'https://mcp.aeoess.com', version: '2.23.1',
+    url: 'https://mcp.aeoess.com', version: MCP_SERVER_VERSION,
     provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
     capabilities: { streaming: true, pushNotifications: false },
     defaultInputModes: ['application/json'], defaultOutputModes: ['application/json'],
@@ -425,7 +425,7 @@ app.get('/', (_req, res) => {
 h1{color:#60a5fa}code{background:#1e293b;padding:2px 8px;border-radius:4px;font-size:.9em}
 pre{background:#1e293b;padding:16px;border-radius:8px;overflow-x:auto;border-left:3px solid #60a5fa}
 a{color:#60a5fa}.badge{display:inline-block;background:#166534;color:#bbf7d0;padding:2px 10px;border-radius:12px;font-size:.85em}</style></head>
-<body><h1>Agent Passport System</h1><p><span class="badge">v2.23.1 — 2410 tests — 150 tools</span></p>
+<body><h1>Agent Passport System</h1><p><span class="badge">v${MCP_SERVER_VERSION} — 2410 tests — 150 tools</span></p>
 <p>Remote MCP server for cryptographic agent identity, delegation, policy enforcement, and governance. 67 core + 32 v2 constitutional modules.</p>
 <h2>Connect</h2><p><b>SSE:</b> <code>https://mcp.aeoess.com/sse</code></p>
 <h3>Claude Desktop</h3><pre>{ "mcpServers": { "agent-passport": { "type": "sse", "url": "https://mcp.aeoess.com/sse" } } }</pre>
