@@ -17,8 +17,8 @@ import { HANDSHAKE_ID, clientRequestId, isClientResponse } from './mcp-correlate
 const PORT = parseInt(process.env.PORT || '3001')
 const HOST = process.env.HOST || '0.0.0.0'
 const API_KEY = process.env.API_KEY || ''
-const MCP_COMMAND = process.env.MCP_COMMAND || 'npx'
-const MCP_ARGS = (process.env.MCP_ARGS || 'agent-passport-system-mcp').split(' ')
+const MCP_COMMAND = process.env.MCP_COMMAND || 'node'
+const MCP_ARGS = (process.env.MCP_ARGS || 'node_modules/agent-passport-system-mcp/build/bin.js').split(' ')
 const SESSION_TIMEOUT_MS = parseInt(process.env.SESSION_TIMEOUT || '3600000')
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '100')
 const GATEWAY_URL = process.env.AEOESS_GATEWAY_URL || process.env.GATEWAY_URL || 'https://gateway.aeoess.com'
