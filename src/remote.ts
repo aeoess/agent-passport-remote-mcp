@@ -298,7 +298,7 @@ app.get('/stats', async (req, res) => {
 
 app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
-    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 150 tools across the full governance distribution stack.',
+    name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 152 tools across the full governance distribution stack.',
     url: 'https://mcp.aeoess.com', version: MCP_SERVER_VERSION,
     provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
     capabilities: { streaming: true, pushNotifications: false },
