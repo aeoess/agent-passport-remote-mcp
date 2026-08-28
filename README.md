@@ -45,7 +45,7 @@ const reader = response.body.getReader();
 | `GET /health` | Health check (JSON) |
 | `GET /.well-known/agent.json` | A2A Agent Card |
 
-## 150 MCP Tools
+## 152 MCP Tools
 
 All protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server — see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
 
