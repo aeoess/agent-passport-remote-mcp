@@ -38,7 +38,7 @@ const sessions = new Map<string, Session>()
 // Unique identifier for this MCP server process lifetime. Reset on every
 // Railway deploy. Gateway deduplicates snapshots per session_id.
 const MCP_SESSION_ID = randomUUID()
-const MCP_SERVER_VERSION = '2.24.0'
+const MCP_SERVER_VERSION = '2.25.0'
 const MCP_STARTED_AT = Date.now()
 
 // ═══════════════════════════════════════
