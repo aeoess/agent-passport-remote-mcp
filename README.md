@@ -1,39 +1,16 @@
-# Agent Passport System — Remote MCP Server
+# Agent Passport System: Remote MCP Server
 
 [![Glama Badge](https://glama.ai/mcp/servers/@aeoess/agent-passport-system-mcp/badge)](https://glama.ai/mcp/servers/@aeoess/agent-passport-system-mcp)
 
-Remote MCP server for the [Agent Passport System](https://aeoess.com) — cryptographic identity, scoped delegation, policy enforcement, and governance for AI agents.
+Remote MCP server for the [Agent Passport System](https://aeoess.com): cryptographic identity, scoped delegation, policy enforcement, and governance for AI agents.
 
-**Live endpoint:** `https://mcp.aeoess.com/sse`
+**Hosted endpoint:** `https://mcp.aeoess.com/sse` is temporarily restricted while the hosted deployment is being updated. Anonymous connections return HTTP 401. Self-hosting is unaffected.
 
 ## Connect
 
-### Claude Desktop / Cursor / Windsurf
+The hosted endpoint is not currently available for anonymous MCP connections. Connection instructions will be restored after the hosted deployment update.
 
-Add to your MCP config:
-
-```json
-{
-  "mcpServers": {
-    "agent-passport": {
-      "type": "sse",
-      "url": "https://mcp.aeoess.com/sse"
-    }
-  }
-}
-```
-
-### Any MCP Client (SSE)
-
-Connect to `https://mcp.aeoess.com/sse` using SSE transport.
-
-### Programmatic
-
-```typescript
-const response = await fetch('https://mcp.aeoess.com/sse');
-const reader = response.body.getReader();
-// Read SSE events...
-```
+For local or self-hosted use, see Self-Hosting below.
 
 ## Endpoints
 
@@ -47,7 +24,7 @@ const reader = response.body.getReader();
 
 ## 152 MCP Tools
 
-All protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server — see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
+All protocol modules exposed across identity, delegation, policy evaluation, values floor, commerce, reputation, coordination, context, comms, Agora, attribution, and institutional governance. The full tool surface tracks the upstream SDK and MCP server: see [agent-passport-system](https://www.npmjs.com/package/agent-passport-system) and [agent-passport-system-mcp](https://www.npmjs.com/package/agent-passport-system-mcp) for the authoritative list.
 
 ## Self-Hosting
 
