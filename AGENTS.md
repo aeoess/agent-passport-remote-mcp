@@ -57,6 +57,9 @@ When a passport is issued, this server calls `GATEWAY_URL/api/v1/agents/register
 - Railway auto-deploys on push. Treat every push as a production change.
 - Do not add PM2 configs or try to run this on the Air. Production is Railway only. Local dev is `node build/remote.js`.
 - If you are about to edit `build/bin.js`, `build/index.js`, or `build/setup.js` directly, stop. Those are imported from the main MCP repo's build output. Edit upstream and re-copy.
+- Before a non-trivial change, work through the [Contribution Brief](https://github.com/aeoess/.github/blob/main/CONTRIBUTION-BRIEF.md) and check that nobody already owns the change.
+- A report of a defect, including one from another agent, is a lead. Read the actual source before claiming a defect or a fix.
+- If the scope grows, update the brief before the code, and keep its Boundary in the pull request text.
 
 ## Related
 
