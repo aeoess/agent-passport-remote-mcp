@@ -267,8 +267,9 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', server: 'agent-passport-remote-mcp', version: MCP_SERVER_VERSION, sessions: sessions.size, maxSessions: MAX_SESSIONS, uptime: process.uptime() })
 })
 
-// /stats — internal only (requires gateway API key)
-// Public metrics surface: aeoess.com/gateway.html
+// /stats is public. Without the gateway API key it returns only a pointer to the public
+// metrics page (aeoess.com/gateway.html), the server version and uptime. With the key it
+// returns the full usage stats.
 app.get('/stats', async (req, res) => {
   const authHeader = req.headers.authorization
   if (!GATEWAY_API_KEY || !authHeader || authHeader !== `Bearer ${GATEWAY_API_KEY}`) {
@@ -300,7 +301,6 @@ app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
     name: 'Agent Passport System', description: 'Cryptographic identity, delegation, policy enforcement, and governance for AI agents. 152 tools across the full governance distribution stack.',
     url: 'https://mcp.aeoess.com', version: MCP_SERVER_VERSION,
-    provider: { organization: 'AEOESS', url: 'https://aeoess.com' },
     capabilities: { streaming: true, pushNotifications: false },
     defaultInputModes: ['application/json'], defaultOutputModes: ['application/json'],
     skills: [
