@@ -50,7 +50,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "agent-passport-system": "6.0.1",
-    "agent-passport-system-mcp": "6.0.1",
+    "agent-passport-system-mcp": "6.1.0",
     "zod": "^3.25.76"
   },
   "overrides": {
